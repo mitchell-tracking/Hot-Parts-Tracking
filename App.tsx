@@ -1,4 +1,4 @@
-
+import { supabase } from './supabaseClient';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Part, ProcessStep, SubStep } from './types';
 import { INITIAL_PARTS, createCastingProcess, createDefaultLifecyclePhases } from './constants';
@@ -20,7 +20,21 @@ const App: React.FC = () => {
 
   const displayedParts = viewMode === 'active' ? activeParts : finishedParts;
   const selectedPart = displayedParts.find(p => p.id === selectedPartId) || null;
-
+// Load data from Supabase when the app starts
+  useEffect(() => {
+    const fetchParts = async () => {
+      const { data, error } = await supabase
+        .from('Parts')
+        .select('*');
+      
+      if (error) {
+        console.error("Error fetching parts:", error);
+      } else if (data && data.length > 0) {
+        setParts(data);
+      }
+    };
+    fetchParts();
+  }, []);
   useEffect(() => {
     if (selectedPart) {
       document.body.style.overflow = 'hidden';
@@ -37,7 +51,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleNewPart = () => {
+  const handleNewPart = async () => {
     const newId = `part-${Date.now()}`;
     const newPart: Part = {
       id: newId,
@@ -50,9 +64,18 @@ const App: React.FC = () => {
       currentStepIndex: 0,
       notes: 'Initial entry.'
     };
-    setParts(prev => [...prev, newPart]);
-    setSelectedPartId(newId);
-    setViewMode('active');
+
+    // This sends it to your database
+    const { error } = await supabase.from('Parts').insert([newPart]);
+
+    if (error) {
+      console.error("Error saving:", error);
+      alert("Database error. Make sure RLS policies are set in Supabase.");
+    } else {
+      setParts(prev => [...prev, newPart]);
+      setSelectedPartId(newId);
+      setViewMode('active');
+    }
   };
 
   const handleDeletePart = (partId: string) => {
