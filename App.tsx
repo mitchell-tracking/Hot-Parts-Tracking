@@ -1,4 +1,4 @@
-import { supabase } from './src/supabaseClient.js';
+import { supabase } from './src/supabaseClient';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Part, ProcessStep, SubStep } from './types';
 import { INITIAL_PARTS, createCastingProcess, createDefaultLifecyclePhases } from './constants';
@@ -24,7 +24,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchParts = async () => {
       const { data, error } = await supabase
-        .from('Parts')
+        .from('parts')
         .select('*');
       
       if (error) {
@@ -66,7 +66,7 @@ const App: React.FC = () => {
     };
 
     // This sends it to your database
-    const { error } = await supabase.from('Parts').insert([newPart]);
+    const { error } = await supabase.from('parts').insert([newPart]);
 
     if (error) {
       console.error("Error saving:", error);
