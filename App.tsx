@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase } from './src/supabaseClient';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Part, ViewMode } from './types';
 import { INITIAL_PARTS, createCastingProcess, createDefaultLifecyclePhases } from './constants';
@@ -14,7 +14,6 @@ const App: React.FC = () => {
   const displayedParts = viewMode === 'active' ? activeParts : finishedParts;
   const selectedPart = displayedParts.find(p => p.id === selectedPartId) || null;
 
-  // 1. FETCH DATA: Load from Supabase when the app starts
   useEffect(() => {
     const fetchParts = async () => {
       const { data, error } = await supabase
@@ -22,24 +21,20 @@ const App: React.FC = () => {
         .select('*');
       
       if (error) {
-        console.error("Error fetching parts:", error);
+        console.error("Error fetching:", error);
       } else if (data && data.length > 0) {
         setParts(data);
       } else {
-        // Fallback to initial constants if database is empty
         setParts(INITIAL_PARTS);
       }
     };
-
     fetchParts();
   }, []);
 
-  // Handle scroll lock for modals
   useEffect(() => {
     document.body.style.overflow = selectedPart ? 'hidden' : 'unset';
   }, [selectedPart]);
 
-  // 2. SAVE DATA: Logic for adding a new part
   const handleNewPart = async () => {
     const newId = `part-${Date.now()}`;
     const newPart: Part = {
@@ -54,26 +49,15 @@ const App: React.FC = () => {
       notes: 'Initial entry.'
     };
 
-    const { error } = await supabase
-      .from('Parts')
-      .insert([newPart]);
+    const { error } = await supabase.from('Parts').insert([newPart]);
 
     if (error) {
-      console.error("Error saving part:", error);
-      alert("Error saving to database. Make sure your table name is 'Parts' and RLS policies are set.");
+      console.error("Error saving:", error);
+      alert("Database error. Check your Supabase RLS policies.");
     } else {
       setParts(prev => [...prev, newPart]);
       setSelectedPartId(newId);
       setViewMode('active');
-    }
-  };
-
-  const updatePart = async (updatedPart: Part) => {
-    // Local UI update
-    if (viewMode === 'active') {
-      setParts(prev => prev.map(p => p.id === updatedPart.id ? updatedPart : p));
-    } else {
-      setFinishedParts(prev => prev.map(p => p.id === updatedPart.id ? updatedPart : p));
     }
   };
 
