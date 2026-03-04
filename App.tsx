@@ -24,7 +24,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchParts = async () => {
       const { data, error } = await supabase
-        .from('parts')
+        .from('Parts')
         .select('*');
       
       if (error) {
@@ -66,7 +66,7 @@ const App: React.FC = () => {
     };
 
     // This sends it to your database
-    const { error } = await supabase.from('parts').insert([newPart]);
+    const { error } = await supabase.from('Parts').insert([newPart]);
 
     if (error) {
       console.error("Error saving:", error);
