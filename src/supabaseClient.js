@@ -1,17 +1,6 @@
-// src/supabaseClient.js
-export const supabase = {
-  from: () => ({
-    select: () => ({ 
-      data: JSON.parse(localStorage.getItem('parts_data') || '[]'), 
-      error: null 
-    }),
-    upsert: (newData) => {
-      localStorage.setItem('parts_data', JSON.stringify(newData));
-      return { error: null };
-    },
-    update: (newData) => {
-        // Logic to update existing local data
-        return { error: null };
-    }
-  })
-};
+import { createClient } from '@supabase/supabase-client'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
