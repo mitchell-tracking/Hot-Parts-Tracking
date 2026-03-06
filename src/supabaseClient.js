@@ -1,6 +1,17 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = 'https://okoxvxzvfnrzofajyxar.supabase.co'
-const supabaseAnonKey = 'sb_publishable_2OkYXGs6iwTCKQe6MDznSA_6kji3mLC' 
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// src/supabaseClient.js
+export const supabase = {
+  from: () => ({
+    select: () => ({ 
+      data: JSON.parse(localStorage.getItem('parts_data') || '[]'), 
+      error: null 
+    }),
+    upsert: (newData) => {
+      localStorage.setItem('parts_data', JSON.stringify(newData));
+      return { error: null };
+    },
+    update: (newData) => {
+        // Logic to update existing local data
+        return { error: null };
+    }
+  })
+};
