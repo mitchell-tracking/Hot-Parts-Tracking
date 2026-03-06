@@ -1,12 +1,13 @@
 import { neon } from '@neondatabase/serverless';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Part, ProcessStep, SubStep } from './types';
-import { INITIAL_PARTS, createCastingProcess, createDefaultLifecyclePhases } from './constants';
+import { createCastingProcess, createDefaultLifecyclePhases } from './constants';
 import { ProgressBar, getScheduleStatus } from './components/ProgressBar';
 
 type ViewMode = 'active' | 'finished';
 
 const App: React.FC = () => {
+  // Start with an empty list so we don't see "ghost" demo parts
   const [parts, setParts] = useState<Part[]>([]);
   const [finishedParts, setFinishedParts] = useState<Part[]>([]);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
@@ -18,6 +19,7 @@ const App: React.FC = () => {
 
   const activeParts = useMemo(() => parts, [parts]);
 
+  // --- 1. LOAD FROM DATABASE ---
   useEffect(() => {
     const loadParts = async () => {
       try {
@@ -30,12 +32,9 @@ const App: React.FC = () => {
             lifecyclePhases: typeof row.lifecycle_phases === 'string' ? JSON.parse(row.lifecycle_phases) : row.lifecycle_phases || []
           }));
           setParts(formattedParts);
-        } else {
-          setParts(INITIAL_PARTS);
         }
       } catch (error) {
         console.error("Database Load Error:", error);
-        setParts(INITIAL_PARTS);
       }
     };
     loadParts();
@@ -52,11 +51,32 @@ const App: React.FC = () => {
     }
   }, [selectedPart]);
 
-  const updatePart = (updatedPart: Part) => {
+  // --- 2. AUTO-UPDATE DATABASE ---
+  const updatePart = async (updatedPart: Part) => {
+    // First, update the screen so it feels instant
     if (viewMode === 'active') {
       setParts(prev => prev.map(p => p.id === updatedPart.id ? updatedPart : p));
     } else {
       setFinishedParts(prev => prev.map(p => p.id === updatedPart.id ? updatedPart : p));
+    }
+
+    // Then, send the update to Neon in the background
+    try {
+      const sql = neon(process.env.DATABASE_URL!);
+      await sql(`
+        UPDATE parts 
+        SET name = $1, status = $2, quantity = $3, est_start_date = $4, 
+            est_finish_date = $5, steps = $6, lifecycle_phases = $7, notes = $8,
+            updated_at = NOW()
+        WHERE id = $9
+      `, [
+        updatedPart.name, updatedPart.status, updatedPart.quantity, 
+        updatedPart.estStartDate, updatedPart.estFinishDate, 
+        JSON.stringify(updatedPart.steps), JSON.stringify(updatedPart.lifecyclePhases), 
+        updatedPart.notes, updatedPart.id
+      ]);
+    } catch (error) {
+      console.error("Failed to sync change to database:", error);
     }
   };
 
@@ -71,7 +91,7 @@ const App: React.FC = () => {
       steps: [createCastingProcess(0)],
       lifecyclePhases: createDefaultLifecyclePhases(),
       currentStepIndex: 0,
-      notes: 'Initial entry.'
+      notes: ''
     };
 
     try {
@@ -80,22 +100,14 @@ const App: React.FC = () => {
         INSERT INTO parts (id, name, status, quantity, est_start_date, est_finish_date, steps, lifecycle_phases, notes)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [
-        newPart.id, 
-        newPart.name, 
-        'TRN', 
-        newPart.quantity, 
-        newPart.estStartDate, 
-        newPart.estFinishDate, 
-        JSON.stringify(newPart.steps), 
-        JSON.stringify(newPart.lifecyclePhases), 
-        newPart.notes
+        newPart.id, newPart.name, 'TRN', newPart.quantity, newPart.estStartDate, 
+        newPart.estFinishDate, JSON.stringify(newPart.steps), 
+        JSON.stringify(newPart.lifecyclePhases), newPart.notes
       ]);
       setParts(prev => [newPart, ...prev]);
       setSelectedPartId(newId);
     } catch (error) {
       console.error("Database Save Error:", error);
-      setParts(prev => [newPart, ...prev]);
-      setSelectedPartId(newId);
     }
   };
 
@@ -142,9 +154,7 @@ const App: React.FC = () => {
     else setDraggedPhaseIndex(index);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
 
   const handleDrop = (part: Part, targetIndex: number, type: 'step' | 'phase') => {
     if (type === 'step' && draggedStepIndex !== null) {
@@ -168,9 +178,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-blue-200 shadow-lg">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-6 h-6">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-6 h-6"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-900">ServiceTrack Pro</h1>
@@ -189,6 +197,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </header>
+
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {displayedParts.map(part => {
@@ -207,7 +216,7 @@ const App: React.FC = () => {
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Current Status</div>
                     <div className="flex gap-1.5 justify-end">
                       {['TRN', 'DV', 'CH'].map(status => (
-                        <span key={status} className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black border-2 ${part.status === status ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100' : 'bg-white border-slate-100 text-slate-300 group-hover:border-slate-200'}`}>{status}</span>
+                        <span key={status} onClick={(e) => { e.stopPropagation(); updatePart({...part, status: status as any}); }} className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black border-2 transition-all ${part.status === status ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100' : 'bg-white border-slate-100 text-slate-300 hover:border-slate-200'}`}>{status}</span>
                       ))}
                     </div>
                   </div>
