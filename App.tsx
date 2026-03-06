@@ -18,6 +18,31 @@ const App: React.FC = () => {
 
   const activeParts = useMemo(() => parts, [parts]);
 
+  // --- LOAD LOGIC START ---
+  useEffect(() => {
+    const loadParts = async () => {
+      try {
+        const sql = neon(process.env.DATABASE_URL!);
+        const data = await sql('SELECT * FROM parts ORDER BY id DESC');
+        
+        if (data && data.length > 0) {
+          // Map database rows back into the format your app expects
+          const formattedParts = data.map(row => ({
+            ...row,
+            steps: typeof row.steps === 'string' ? JSON.parse(row.steps) : row.steps || [],
+            lifecyclePhases: typeof row.lifecyclePhases === 'string' ? JSON.parse(row.lifecyclePhases) : row.lifecyclePhases || []
+          }));
+          setParts(formattedParts);
+        }
+      } catch (error) {
+        console.error("Failed to load parts from Neon:", error);
+      }
+    };
+
+    loadParts();
+  }, []);
+  // --- LOAD LOGIC END ---
+
   const displayedParts = viewMode === 'active' ? activeParts : finishedParts;
   const selectedPart = displayedParts.find(p => p.id === selectedPartId) || null;
 
