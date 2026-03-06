@@ -1,4 +1,4 @@
-
+import { Redis } from '@upstash/redis';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Part, ProcessStep, SubStep } from './types';
 import { INITIAL_PARTS, createCastingProcess, createDefaultLifecyclePhases } from './constants';
@@ -16,6 +16,32 @@ const App: React.FC = () => {
   const [draggedStepIndex, setDraggedStepIndex] = useState<number | null>(null);
   const [draggedPhaseIndex, setDraggedPhaseIndex] = useState<number | null>(null);
 
+  // Initialize the database connection
+  const redis = Redis.fromEnv();
+
+  // LOAD: This pulls your parts from Upstash when the page opens
+  useEffect(() => {
+    async function load() {
+      try {
+        const saved = await redis.get<Part[]>('hot_parts_list');
+        if (saved) setParts(saved);
+      } catch (e) {
+        console.error("Database Load Error:", e);
+      }
+    }
+    load();
+  }, []);
+
+  // SAVE: This sends the entire list to Upstash whenever you add/change a part
+  const syncToCloud = async (newList: Part[]) => {
+    setParts(newList); // Update screen immediately
+    try {
+      await redis.set('hot_parts_list', JSON.stringify(newList));
+    } catch (e) {
+      console.error("Database Save Error:", e);
+    }
+  };
+
   const activeParts = useMemo(() => parts, [parts]);
 
   const displayedParts = viewMode === 'active' ? activeParts : finishedParts;
@@ -30,11 +56,15 @@ const App: React.FC = () => {
   }, [selectedPart]);
 
   const updatePart = (updatedPart: Part) => {
+    let newList;
     if (viewMode === 'active') {
-      setParts(prev => prev.map(p => p.id === updatedPart.id ? updatedPart : p));
+      newList = parts.map(p => p.id === updatedPart.id ? updatedPart : p);
     } else {
-      setFinishedParts(prev => prev.map(p => p.id === updatedPart.id ? updatedPart : p));
+      newList = finishedParts.map(p => p.id === updatedPart.id ? updatedPart : p);
     }
+    
+    // Save the change to the cloud
+    syncToCloud(newList);
   };
 
   const handleNewPart = () => {
@@ -50,7 +80,10 @@ const App: React.FC = () => {
       currentStepIndex: 0,
       notes: 'Initial entry.'
     };
-    setParts(prev => [...prev, newPart]);
+
+    // This is the magic line that saves it to Upstash
+    syncToCloud([newPart, ...parts]);
+    
     setSelectedPartId(newId);
     setViewMode('active');
   };
