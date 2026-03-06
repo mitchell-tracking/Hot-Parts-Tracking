@@ -10,7 +10,6 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/supabase-js": "latest",
     "react-dom": "^19.2.4",
     "@google/genai": "^1.41.0",
     "@neondatabase/serverless": "^0.10.4",
