@@ -1,4 +1,4 @@
-
+import { neon } from '@neondatabase/serverless';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Part, ProcessStep, SubStep } from './types';
 import { INITIAL_PARTS, createCastingProcess, createDefaultLifecyclePhases } from './constants';
@@ -37,24 +37,36 @@ const App: React.FC = () => {
     }
   };
 
-  const handleNewPart = () => {
-    const newId = `part-${Date.now()}`;
-    const newPart: Part = {
-      id: newId,
-      name: `NEW-PART-${activeParts.length + 1}`,
-      quantity: 1,
-      estStartDate: new Date().toISOString().split('T')[0],
-      estFinishDate: 'TBD',
-      steps: [createCastingProcess(0)],
-      lifecyclePhases: createDefaultLifecyclePhases(),
-      currentStepIndex: 0,
-      notes: 'Initial entry.'
-    };
-    setParts(prev => [...prev, newPart]);
-    setSelectedPartId(newId);
-    setViewMode('active');
+  const handleNewPart = async () => {
+  const newId = `part-${Date.now()}`;
+  
+  // 1. Create the data object
+  const newPart: Part = {
+    id: newId,
+    name: `NEW-PART-${activeParts.length + 1}`,
+    quantity: 1,
+    estStartDate: new Date().toISOString().split('T')[0],
+    estFinishDate: 'TBD',
+    steps: [createCastingProcess(0)],
+    lifecyclePhases: createDefaultLifecyclePhases(),
+    currentStepIndex: 0,
+    notes: 'Initial entry.'
   };
 
+  // 2. The Magic Part: Save to Neon
+  try {
+    const sql = neon(process.env.DATABASE_URL!);
+    await sql('INSERT INTO parts (id, name, status) VALUES ($1, $2, $3)', 
+      [newPart.id, newPart.name, 'TRN']); // 'TRN' as default status
+  } catch (error) {
+    console.error("Database save failed:", error);
+  }
+
+  // 3. Update the screen like you were doing before
+  setParts(prev => [...prev, newPart]);
+  setSelectedPartId(newId);
+  setViewMode('active');
+};
   const handleDeletePart = (partId: string) => {
     if (!window.confirm("Are you sure you want to delete this part? This action cannot be undone.")) return;
     if (viewMode === 'active') {
