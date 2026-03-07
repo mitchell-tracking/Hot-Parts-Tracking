@@ -3,11 +3,12 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Part, ProcessStep, SubStep } from './types';
 import { INITIAL_PARTS, createCastingProcess, createDefaultLifecyclePhases } from './constants';
 import { ProgressBar, getScheduleStatus } from './components/ProgressBar';
+import { partsService } from './src/services/partsService';
 
 type ViewMode = 'active' | 'finished';
 
 const App: React.FC = () => {
-  const [parts, setParts] = useState<Part[]>(INITIAL_PARTS);
+  const [parts, setParts] = useState<Part[]>([]);
   const [finishedParts, setFinishedParts] = useState<Part[]>([]);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('active');
@@ -28,6 +29,20 @@ const App: React.FC = () => {
       document.body.style.overflow = 'unset';
     }
   }, [selectedPart]);
+  // This function fetches your parts from the database
+  const loadParts = async () => {
+    try {
+      const data = await partsService.getParts();
+      setParts(data as Part[]);
+    } catch (error) {
+      console.error('Error loading parts:', error);
+    }
+  };
+
+  // This tells the app to run the fetch as soon as the site loads
+  useEffect(() => {
+    loadParts();
+  }, []);
 
   const updatePart = (updatedPart: Part) => {
     if (viewMode === 'active') {
@@ -37,7 +52,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleNewPart = () => {
+  const handleNewPart = async () => {
     const newId = `part-${Date.now()}`;
     const newPart: Part = {
       id: newId,
@@ -50,9 +65,18 @@ const App: React.FC = () => {
       currentStepIndex: 0,
       notes: 'Initial entry.'
     };
-    setParts(prev => [...prev, newPart]);
-    setSelectedPartId(newId);
-    setViewMode('active');
+
+    try {
+      // 1. Sends the new part to your Supabase database
+      await partsService.addPart(newPart);
+      // 2. Refreshes the list so the new part appears from the cloud
+      await loadParts();
+      setSelectedPartId(newId);
+      setViewMode('active');
+    } catch (error) {
+      console.error('Error saving new part:', error);
+      alert('Failed to save part to database.');
+    }
   };
 
   const handleDeletePart = (partId: string) => {
